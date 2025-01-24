@@ -147,12 +147,12 @@ class MultiHeadAttention(nn.Module):
         if attention_mask is None:
             mask = causal_mask
         else:
-            print(causal_mask.shape)
-            print(attention_mask.shape)
+            #print(causal_mask.shape)
+            #print(attention_mask.shape)
             mask = torch.einsum('ij,kj->kij', causal_mask.float(), attention_mask)
             #mask = mask.unsqueeze(1).repeat(1, list(unmasked_attn_logits.shape)[1], 1)
             mask = repeat(mask, 'a c d -> a b c d', b=list(unmasked_attn_logits.shape)[1])
-        print(mask.shape)
+        #print(mask.shape)
         mask.to(q.device)
         """
         Fill unmasked_attn_logits with float_min wherever causal mask has value False.
@@ -160,7 +160,7 @@ class MultiHeadAttention(nn.Module):
         Hint: torch.masked_fill
         """
         float_min = torch.finfo(q.dtype).min
-        print(unmasked_attn_logits.shape)
+        #print(unmasked_attn_logits.shape)
         attn_logits = unmasked_attn_logits.masked_fill(torch.logical_not(mask), float_min)
         #print(attn_logits)
         attn_weights = attn_logits.softmax(dim=-1) # ...
@@ -171,7 +171,7 @@ class MultiHeadAttention(nn.Module):
         # scale value by the attention weights.
         attn = torch.matmul(attn_weights, v)
         attn = rearrange(attn, 'b h s hd -> b s (h hd)')
-        print(attn.shape)
+        #print(attn.shape)
         
         return attn
 
@@ -264,7 +264,6 @@ class DecoderBlock(nn.Module):
 
 class DecoderLM(nn.Module):
     """The decoder language model."""
-
     def __init__(
         self,
         n_vocab: int,
@@ -345,11 +344,17 @@ class DecoderLM(nn.Module):
 
         assert input_ids.shape[1] <= self.n_positions
         token_embeddings = self.token_embeddings(input_ids) # ...
+
         if attention_mask is not None:
             position_ids = torch.cumsum(attention_mask, dim=1)
+            print(position_ids.shape)
         else:
             position_ids = torch.arange(list(input_ids.shape)[1]).repeat(list(input_ids.shape)[0], 1)
-        positional_embeddings = self.position_embeddings(position_ids.int()) # ...
+            print(position_ids.shape)
+        print(self.position_embeddings.weight)
+        positional_embeddings = F.embedding(position_ids.int(), self.position_embeddings.weight) # ...
+        print(positional_embeddings)
+
         return self.dropout(token_embeddings + positional_embeddings)
 
     def token_logits(self, x: torch.FloatTensor) -> torch.FloatTensor:
@@ -364,7 +369,7 @@ class DecoderLM(nn.Module):
         Hint: Use the weight tying technique discussed in Q1.2
         """
 
-        logits = self.ln(x) #torch.matmul(x, self.token_embeddings) # ...
+        logits = torch.einsum('b s d, v d -> b s v', x, self.token_embeddings.weight) # self.ln(x) # ...
         return logits
 
     def forward(
