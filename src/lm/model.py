@@ -102,7 +102,7 @@ class MultiHeadAttention(nn.Module):
 
         Hint: torch.triu or torch.tril
         """
-        causal_mask = torch.tril(torch.full(*attention_mask.shape[1])) #...
+        causal_mask = torch.tril(torch.full((list(q.shape)[2], list(q.shape)[2]), True)) #...
 
         """
         Sometimes, we want to pad the input sequences so that they have the same
@@ -335,7 +335,7 @@ class DecoderLM(nn.Module):
         if attention_mask is not None:
             position_ids = torch.cumsum(attention_mask, dim=1)
         else:
-            position_ids = torch.arange(*input_ids.shape[1]).repeat(*input_ids.shape[0], 1)
+            position_ids = torch.arange(list(input_ids.shape)[1]).repeat(list(input_ids.shape)[0], 1)
         positional_embeddings = self.position_embeddings(position_ids) # ...
         return self.dropout(token_embeddings + positional_embeddings)
 
@@ -351,7 +351,7 @@ class DecoderLM(nn.Module):
         Hint: Use the weight tying technique discussed in Q1.2
         """
 
-        logits = torch.matmul(x, self.token_embeddings) # ...
+        logits = self.ln(x) #torch.matmul(x, self.token_embeddings) # ...
         return logits
 
     def forward(
