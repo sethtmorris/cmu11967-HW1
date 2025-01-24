@@ -343,17 +343,20 @@ class DecoderLM(nn.Module):
         """
 
         assert input_ids.shape[1] <= self.n_positions
-        token_embeddings = self.token_embeddings(input_ids) # ...
+        token_embeddings = self.token_embeddings(input_ids)
+        token_embeddings.to(input_ids.device) # ...
 
         if attention_mask is not None:
-            position_ids = torch.cumsum(attention_mask, dim=1)
-            #print(position_ids.shape)
+            print(attention_mask)
+            attention_mask.to(input_ids.device)
+            position_ids = torch.sub(torch.cumsum(attention_mask, dim=1), 1)
+            print(position_ids)
         else:
             position_ids = torch.arange(list(input_ids.shape)[1]).repeat(list(input_ids.shape)[0], 1)
-            #print(position_ids.shape)
+            print(position_ids)
         #print(self.position_embeddings.weight)
-        positional_embeddings = F.embedding(position_ids.int(), self.position_embeddings.weight).to(input_ids.device) # ...
-        #print(positional_embeddings)
+        positional_embeddings = F.embedding(position_ids.int().to(input_ids.device), self.position_embeddings.weight.to(input_ids.device)) # ...
+        print(positional_embeddings)
 
         return self.dropout(token_embeddings + positional_embeddings)
 
@@ -369,7 +372,7 @@ class DecoderLM(nn.Module):
         Hint: Use the weight tying technique discussed in Q1.2
         """
 
-        logits = torch.einsum('b s d, v d -> b s v', x, self.token_embeddings.weight) # self.ln(x) # ...
+        logits = torch.einsum('b s d, v d -> b s v', x, self.token_embeddings.weight) #/ torch.sqrt(torch.tensor(self.n_embd)) # self.ln(x) # ...
         return logits
 
     def forward(
