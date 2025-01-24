@@ -347,13 +347,13 @@ class DecoderLM(nn.Module):
 
         if attention_mask is not None:
             position_ids = torch.cumsum(attention_mask, dim=1)
-            print(position_ids.shape)
+            #print(position_ids.shape)
         else:
             position_ids = torch.arange(list(input_ids.shape)[1]).repeat(list(input_ids.shape)[0], 1)
-            print(position_ids.shape)
-        print(self.position_embeddings.weight)
-        positional_embeddings = F.embedding(position_ids.int(), self.position_embeddings.weight) # ...
-        print(positional_embeddings)
+            #print(position_ids.shape)
+        #print(self.position_embeddings.weight)
+        positional_embeddings = F.embedding(position_ids.int(), self.position_embeddings.weight).to(input_ids.device) # ...
+        #print(positional_embeddings)
 
         return self.dropout(token_embeddings + positional_embeddings)
 
