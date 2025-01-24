@@ -76,6 +76,7 @@ class MultiHeadAttention(nn.Module):
         """
 
         # compute the attention weights using q and kT
+        # print(q.shape)
         qkT =  torch.matmul(q, kT) # ...
         unmasked_attn_logits = qkT * self.scale_factor
 
@@ -159,7 +160,9 @@ class MultiHeadAttention(nn.Module):
 
         # scale value by the attention weights.
         attn = torch.matmul(attn_weights, v)
-
+        attn = rearrange(attn, 'b h s hd -> b s (h hd)')
+        print(attn.shape)
+        
         return attn
 
     def projection(self, attn: torch.FloatTensor) -> torch.FloatTensor:
