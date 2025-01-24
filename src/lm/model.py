@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from einops import rearrange
+from einops import rearrange, repeat
 
 from lm.utils import count_params
 
@@ -147,8 +147,11 @@ class MultiHeadAttention(nn.Module):
         if attention_mask is None:
             mask = causal_mask
         else:
+            print(causal_mask.shape)
             print(attention_mask.shape)
-            mask = torch.matmul(attention_mask, causal_mask.float())
+            mask = torch.einsum('ij,kj->kij', causal_mask.float(), attention_mask)
+            #mask = mask.unsqueeze(1).repeat(1, list(unmasked_attn_logits.shape)[1], 1)
+            mask = repeat(mask, 'a c d -> a b c d', b=list(unmasked_attn_logits.shape)[1])
         print(mask.shape)
         mask.to(q.device)
         """
@@ -157,13 +160,13 @@ class MultiHeadAttention(nn.Module):
         Hint: torch.masked_fill
         """
         float_min = torch.finfo(q.dtype).min
-        print(unmasked_attn_logits)
+        print(unmasked_attn_logits.shape)
         attn_logits = unmasked_attn_logits.masked_fill(torch.logical_not(mask), float_min)
-        print(attn_logits)
+        #print(attn_logits)
         attn_weights = attn_logits.softmax(dim=-1) # ...
-        print(attn_weights)
+        #print(attn_weights)
         attn_weights = self.dropout(attn_weights)
-        print(attn_weights)
+        #print(attn_weights)
 
         # scale value by the attention weights.
         attn = torch.matmul(attn_weights, v)
@@ -346,7 +349,7 @@ class DecoderLM(nn.Module):
             position_ids = torch.cumsum(attention_mask, dim=1)
         else:
             position_ids = torch.arange(list(input_ids.shape)[1]).repeat(list(input_ids.shape)[0], 1)
-        positional_embeddings = self.position_embeddings(position_ids) # ...
+        positional_embeddings = self.position_embeddings(position_ids.int()) # ...
         return self.dropout(token_embeddings + positional_embeddings)
 
     def token_logits(self, x: torch.FloatTensor) -> torch.FloatTensor:
