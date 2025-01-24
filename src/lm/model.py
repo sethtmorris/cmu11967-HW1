@@ -104,7 +104,8 @@ class MultiHeadAttention(nn.Module):
         Hint: torch.triu or torch.tril
         """
         causal_mask = torch.tril(torch.full((list(q.shape)[2], list(q.shape)[2]), True)) #...
-
+        #print(causal_mask)
+        causal_mask.to(q.device)
         """
         Sometimes, we want to pad the input sequences so that they have the same
         length and can fit into the same batch. These padding tokens should not
@@ -146,17 +147,23 @@ class MultiHeadAttention(nn.Module):
         if attention_mask is None:
             mask = causal_mask
         else:
-            mask = torch.matmul(attention_mask, causal_mask)
-
+            print(attention_mask.shape)
+            mask = torch.matmul(attention_mask, causal_mask.float())
+        print(mask.shape)
+        mask.to(q.device)
         """
         Fill unmasked_attn_logits with float_min wherever causal mask has value False.
 
         Hint: torch.masked_fill
         """
         float_min = torch.finfo(q.dtype).min
+        print(unmasked_attn_logits)
         attn_logits = unmasked_attn_logits.masked_fill(torch.logical_not(mask), float_min)
-        attn_weights = nn.functional.softmax(attn_logits) # ...
+        print(attn_logits)
+        attn_weights = attn_logits.softmax(dim=-1) # ...
+        print(attn_weights)
         attn_weights = self.dropout(attn_weights)
+        print(attn_weights)
 
         # scale value by the attention weights.
         attn = torch.matmul(attn_weights, v)
