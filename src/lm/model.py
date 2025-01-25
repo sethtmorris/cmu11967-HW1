@@ -146,14 +146,16 @@ class MultiHeadAttention(nn.Module):
 
         if attention_mask is None:
             mask = causal_mask
+            #mask.to(q.device)
         else:
             #print(causal_mask.shape)
             #print(attention_mask.shape)
             mask = torch.einsum('ij,kj->kij', causal_mask.float(), attention_mask)
             #mask = mask.unsqueeze(1).repeat(1, list(unmasked_attn_logits.shape)[1], 1)
             mask = repeat(mask, 'a c d -> a b c d', b=list(unmasked_attn_logits.shape)[1])
+            #mask.to(q.device)
         #print(mask.shape)
-        mask.to(q.device)
+        #mask.to(q.device)
         """
         Fill unmasked_attn_logits with float_min wherever causal mask has value False.
 
@@ -161,7 +163,7 @@ class MultiHeadAttention(nn.Module):
         """
         float_min = torch.finfo(q.dtype).min
         #print(unmasked_attn_logits.shape)
-        attn_logits = unmasked_attn_logits.masked_fill(torch.logical_not(mask), float_min)
+        attn_logits = unmasked_attn_logits.masked_fill(torch.logical_not(mask.to(unmasked_attn_logits.device)), float_min)
         #print(attn_logits)
         attn_weights = attn_logits.softmax(dim=-1) # ...
         #print(attn_weights)
@@ -317,7 +319,7 @@ class DecoderLM(nn.Module):
             embeddings: token representations with shape (B x S x D)
         """
 
-        """
+        """# https://paperswithcode.com/method/weight-tying
         Position ids are indices of tokens in the sequence. When attention_mask
         isn't provided, they are simply [0, 1, 2, ...] for every sequence in the
         batch. When they are provided, you should ignore tokens with attention_mask
@@ -347,16 +349,16 @@ class DecoderLM(nn.Module):
         token_embeddings.to(input_ids.device) # ...
 
         if attention_mask is not None:
-            print(attention_mask)
+            #print(attention_mask)
             attention_mask.to(input_ids.device)
             position_ids = torch.sub(torch.cumsum(attention_mask, dim=1), 1)
-            print(position_ids)
+            #print(position_ids)
         else:
             position_ids = torch.arange(list(input_ids.shape)[1]).repeat(list(input_ids.shape)[0], 1)
-            print(position_ids)
+            #print(position_ids)
         #print(self.position_embeddings.weight)
         positional_embeddings = F.embedding(position_ids.int().to(input_ids.device), self.position_embeddings.weight.to(input_ids.device)) # ...
-        print(positional_embeddings)
+        #print(positional_embeddings)
 
         return self.dropout(token_embeddings + positional_embeddings)
 
@@ -390,8 +392,14 @@ class DecoderLM(nn.Module):
         Returns:
             logits: logits corresponding to the predicted next token likelihoods (B x S x V)
         """
+        x = self.embed(input_ids, attention_mask)
 
-        logits = self.token_logits(self.embed(input_ids, attention_mask)) # ...
+        # Idea from nanoGPT
+        for block in self.blocks:
+            x = block(x, attention_mask)
+        x = self.ln(x)
+
+        logits = self.token_logits(x) #self.embed(input_ids, attention_mask)) # ...
         return logits
 
     def _init_weights(self, module):
